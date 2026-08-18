@@ -1,6 +1,6 @@
 from ursina import *
 from ursina.prefabs.first_person_controller import FirstPersonController
-from objects import (Flashlight, Desk, Monitor, Chair,
+from objects import (Flashlight, Desk, Monitor, Chair, Locker, LockerUI,
                      has_model, load_furniture, FURNITURE_SIZES)
 from PIL import Image
 import os
@@ -82,10 +82,18 @@ else:
                       color=color.rgba(25, 25, 25), collider='box')
 
 # кресло за спиной
-chair = Chair((0, -0.5, 1.0))
+# кресло крупнее и левее
+chair = Chair((-0.6, -0.5, 1.0))
 
+# шкаф за креслом (если встанет спиной - rotation_y=180)
+locker = Locker((-0.6, -0.5, -3.1), rotation_y=0)
+
+# окно хранилища
+locker_ui = LockerUI()
 # игрок
 player = FirstPersonController(position=(0, 1, 1.6), speed=5)
+
+
 
 # фонарик
 flashlight = Flashlight()
@@ -93,20 +101,22 @@ flashlight = Flashlight()
 # UI
 battery_bar = Entity(
     parent=camera.ui, model='quad', scale=(0.3, 0.02),
-    position=(-0.35, -0.45), color=color.rgba(80, 80, 80, 255),
+    position=(-0.35, -0.45), color=color.rgba(80, 80, 80, 255), unlit=True,
 )
 battery_fill = Entity(
     parent=camera.ui, model='quad', scale=(0.3, 0.02),
-    position=(-0.35, -0.45), color=color.rgba(100, 200, 100, 255),
+    position=(-0.35, -0.45), color=color.rgba(100, 200, 100, 255), unlit=True,
 )
 hint_text = Text(
-    parent=camera.ui, text='F - фонарик',
+    parent=camera.ui, text='F - фонарик | E - хранилище',
     position=(-0.85, -0.48), scale=1.2,
     color=color.rgba(200, 200, 200, 255),
 )
 
 
 def update():
+    # пока хранилище открыто - игрок стоит на месте
+    player.speed = 0 if locker_ui.open else 5
     dt = time.dt
     flashlight.update(dt)
 
@@ -131,5 +141,14 @@ def input(key):
     if key == 'f':
         flashlight.toggle()
 
+    # E - открыть/закрыть хранилище (открывается только рядом со шкафом)
+    if key == 'e':
+        if locker_ui.open:
+            locker_ui.close_ui()
+        elif locker.player_near(player):
+            locker_ui.open_ui()
 
+    # Escape закрывает окно
+    if key == 'escape' and locker_ui.open:
+        locker_ui.close_ui()
 app.run()

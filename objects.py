@@ -7,10 +7,11 @@ import os
 
 # Размеры мебели в метрах: (размер, по чему мерить: 'max' или 'y')
 FURNITURE_SIZES = {
-    'desk':     (2.6, 'max'),   # длина парты
-    'monitor':  (0.65, 'y'),    # высота монитора
-    'keyboard': (0.55, 'max'),  # длина клавиатуры (было 0.4 - мелко)
-    'chair':    (1.3, 'y'),     # высота кресла (было 1.1 - мало)
+    'desk':     (2.6, 'max'),
+    'monitor':  (0.65, 'y'),
+    'keyboard': (0.55, 'max'),
+    'chair':    (1.5, 'y'),    # было 1.3 - чуть больше
+    'locker':   (1.8, 'y'),    # высота шкафа
 }
 
 
@@ -56,12 +57,18 @@ def load_furniture(name, target_size, x, z, base_y, rotation_y=0, collider=None,
     return e
 
 
-def force_color(e, c):
-    e.setMaterialOff(1)
-    e.setTextureOff(1)
-    e.setLightOff(1)
-    e.setColor(c, 1)
-    e.setColorScale((0.2, 0.2, 0.22, 1), 1)  # вот эта строка
+def nuke_material(e, c):
+    """
+    Полностью снимает с ноды шейдер, материал и текстуру и красит в цвет.
+    Идёт по ВСЕМ внутренностям модели через родной get_children().
+    После этого модель рендерится как обычные кубы/стол - светом и цветом.
+    """
+    e.clearShader()
+    e.clearMaterial()
+    e.clearTexture()
+    e.setColor(c)
+    for child in e.get_children():
+        nuke_material(child, c)
 
 class Flashlight:
     """Фонарик игрока: конус света на камере, батарейка садится."""
@@ -143,17 +150,121 @@ class Monitor:
                              color=screen_color, unlit=True, rotation_y=tilt)
 
 
+
+class Message:
+    """Всплывающее сообщение внизу экрана."""
+    def __init__(self):
+        self.text = Text(
+            parent=camera.ui, text='', position=(0, -0.35),
+            origin=(0, 0), scale=1.5,
+            color=color.rgba(230, 230, 230, 255),
+        )
+        self.text.enabled = False
+        self.timer = 0
+
+    def show(self, msg, duration=2.5):
+        self.text.text = msg
+        self.timer = duration
+        self.text.enabled = True
+
+    def update(self, dt):
+        if self.timer > 0:
+            self.timer -= dt
+            if self.timer <= 0:
+                self.text.enabled = False
+
+
+class Locker:
+    """Шкаф-хранилище за креслом."""
+    def __init__(self, position, rotation_y=0):
+        x, y, z = position
+        if has_model('locker'):
+            size, axis = FURNITURE_SIZES['locker']
+            self.entity = load_furniture('locker', size, x, z, -0.5,
+                                         rotation_y=rotation_y, collider='box', axis=axis)
+            # если шкаф приедет белым/чёрным как кресло - раскомментируй:
+            # nuke_material(self.entity, color.rgba(60, 70, 85))
+        else:
+            # запасной вариант из куба
+            self.entity = Entity(
+                model='cube', scale=(0.8, 1.8, 0.5),
+                position=(x, 0.4, z),
+                color=color.rgba(60, 70, 85), collider='box',
+            )
+
+    def player_near(self, player, radius=1.8):
+        """True если игрок стоит рядом со шкафом."""
+        d = ((self.entity.x - player.x) ** 2 + (self.entity.z - player.z) ** 2) ** 0.5
+        return d <= radius
+
+
+class LockerUI:
+    """
+    Окно хранилища: сетка пустых слотов по центру экрана.
+    Сюда потом будем класть айтемы.
+    """
+    def __init__(self, rows=3, cols=4):
+        self.rows = rows
+        self.cols = cols
+        self.slots = [None] * (rows * cols)  # сюда позже встанут предметы
+        self.open = False
+        self.parts = []
+
+        # тёмная панель-подложка (БЕЗ transparency - с ней авто-шейдер белит)
+        # z=1 - она ДАЛЬШЕ от камеры, слоты рисуются поверх
+        panel = Entity(parent=camera.ui, model='quad', scale=(0.72, 0.56),
+                       position=(0, 0, 1), color=color.rgba(18, 18, 24),
+                       unlit=True)
+        self.parts.append(panel)
+
+        # заголовок (z=-1 - ближе к камере)
+        title = Text(parent=camera.ui, text='ХРАНИЛИЩЕ', position=(0, 0.23, -1),
+                     origin=(0, 0), scale=1.5, color=color.rgba(230, 230, 230, 255))
+        self.parts.append(title)
+
+        # сетка квадратных слотов
+        slot_size = 0.13
+        gap = 0.02
+        grid_w = cols * slot_size + (cols - 1) * gap
+        grid_h = rows * slot_size + (rows - 1) * gap
+        start_x = -grid_w / 2 + slot_size / 2
+        start_y = grid_h / 2 - slot_size / 2 - 0.03
+
+        for r in range(rows):
+            for c in range(cols):
+                q = Entity(parent=camera.ui, model='quad',
+                           scale=(slot_size, slot_size),
+                           position=(start_x + c * (slot_size + gap),
+                                     start_y - r * (slot_size + gap), -1),
+                           color=color.rgba(60, 60, 70, 255), unlit=True)
+                self.parts.append(q)
+
+        self.set_visible(False)
+
+    def set_visible(self, value):
+        for p in self.parts:
+            p.enabled = value
+
+    def open_ui(self):
+        self.open = True
+        self.set_visible(True)
+
+    def close_ui(self):
+        self.open = False
+        self.set_visible(False)
+
+
 class Chair:
     """Кресло охранника."""
     def __init__(self, position):
         x, y, z = position
         if has_model('chair'):
             size, axis = FURNITURE_SIZES['chair']
-            # 180 - кресло лицом к столу
             self.entity = load_furniture('chair', size, x, z, -0.5,
                                          rotation_y=180, collider='box', axis=axis)
-            # принудительно красим в тёмный
-            force_color(self.entity, color.rgba(45, 45, 50))
+            # сдираем кривой glTF-шейдер до последней ноды
+            # и красим в тёмный - будет освещаться лампой как стол
+            nuke_material(self.entity, color.rgba(50, 50, 60))
             return
 
         # запасной вариант из кубов
@@ -166,7 +277,6 @@ class Chair:
         self.base = Entity(model='cube', scale=(0.1, 0.45, 0.1),
                            position=(x, y + 0.22, z),
                            color=color.rgba(20, 20, 20))
-
 
 # диагностика при импорте
 print('--- диагностика моделей ---')
