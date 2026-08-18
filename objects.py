@@ -2,7 +2,18 @@
 Игровые объекты: фонарик и мебель охранника.
 """
 from ursina import *
+from panda3d.core import MaterialAttrib
 import os
+
+
+def rgba255(r, g, b, a=255):
+    """
+    В установленной версии Ursina (8.3.0) встроенный color.rgba() больше не делит
+    автоматически значения 0-255 на 255 - значения просто обрезаются
+    видеокартой до 1.0, что даёт белый цвет вместо задуманного.
+    Используй эту функцию вместо color.rgba(), передавая как раньше 0-255.
+    """
+    return color.rgba(r / 255, g / 255, b / 255, a / 255)
 
 
 # Размеры мебели в метрах: (размер, по чему мерить: 'max' или 'y')
@@ -70,6 +81,27 @@ def nuke_material(e, c):
     for child in e.get_children():
         nuke_material(child, c)
 
+
+def restore_original_colors(e, fallback=rgba255(140, 140, 140, 255)):
+    """
+    Как nuke_material, но красит КАЖДУЮ часть модели в ЕЁ РЕАЛЬНЫЙ исходный
+    цвет из glTF-материала (baseColorFactor), а не в один цвет на всю модель.
+    Нужно именно для моделей без картинки-текстуры (только плоский цвет
+    в материале) - у таких Panda3D иногда рисует белую заглушку.
+    """
+    for node_path in e.find_all_matches('**/+GeomNode'):
+        node_path.clear_shader()
+        node_path.clear_texture()
+        geom_node = node_path.node()
+        for i in range(geom_node.get_num_geoms()):
+            state = geom_node.get_geom_state(i)
+            mat_attrib = state.get_attrib(MaterialAttrib)
+            if mat_attrib and mat_attrib.get_material() and mat_attrib.get_material().has_base_color():
+                c = mat_attrib.get_material().get_base_color()
+            else:
+                c = fallback
+            node_path.set_color(c)
+
 class Flashlight:
     """Фонарик игрока: конус света на камере, батарейка садится."""
     def __init__(self):
@@ -81,7 +113,7 @@ class Flashlight:
         self.light = SpotLight(
             parent=camera,
             position=(0, -0.3, 0),
-            color=color.rgba(255, 245, 220, 255),
+            color=rgba255(255, 245, 220, 255),
             rotation=(90, 0, 0),
         )
         self.light._light.setAttenuation(Vec3(1, 0.15, 0.08))
@@ -115,13 +147,13 @@ class Desk:
         # запасной вариант из кубов
         self.top = Entity(model='cube', scale=(2.6, 0.08, 1.0),
                           position=(x, y + 0.72, z),
-                          color=color.rgba(70, 50, 35), collider='box')
+                          color=rgba255(70, 50, 35), collider='box')
         self.leg_l = Entity(model='cube', scale=(0.08, 0.72, 0.9),
                             position=(x - 1.2, y + 0.36, z),
-                            color=color.rgba(40, 40, 40), collider='box')
+                            color=rgba255(40, 40, 40), collider='box')
         self.leg_r = Entity(model='cube', scale=(0.08, 0.72, 0.9),
                             position=(x + 1.2, y + 0.36, z),
-                            color=color.rgba(40, 40, 40), collider='box')
+                            color=rgba255(40, 40, 40), collider='box')
         self.top_y = y + 0.76
 
 
@@ -130,7 +162,7 @@ class Monitor:
     Монитор на столе.
     tilt - доворот экрана к центру (для боковых мониторов).
     """
-    def __init__(self, x, z, top_y, tilt=0, screen_color=color.rgba(110, 150, 190)):
+    def __init__(self, x, z, top_y, tilt=0, screen_color=rgba255(110, 150, 190)):
         if has_model('monitor'):
             size, axis = FURNITURE_SIZES['monitor']
             self.entity = load_furniture('monitor', size, x, z + 0.15, top_y,
@@ -141,10 +173,10 @@ class Monitor:
         # запасной вариант из кубов
         self.stand = Entity(model='cube', scale=(0.1, 0.2, 0.1),
                             position=(x, top_y + 0.1, z + 0.15),
-                            color=color.rgba(25, 25, 25))
+                            color=rgba255(25, 25, 25))
         self.body = Entity(model='cube', scale=(0.75, 0.5, 0.06),
                            position=(x, top_y + 0.45, z + 0.2),
-                           color=color.rgba(15, 15, 15), rotation_y=tilt)
+                           color=rgba255(15, 15, 15), rotation_y=tilt)
         self.screen = Entity(model='cube', scale=(0.68, 0.42, 0.01),
                              position=(x, top_y + 0.45, z + 0.16),
                              color=screen_color, unlit=True, rotation_y=tilt)
@@ -157,7 +189,7 @@ class Message:
         self.text = Text(
             parent=camera.ui, text='', position=(0, -0.35),
             origin=(0, 0), scale=1.5,
-            color=color.rgba(230, 230, 230, 255),
+            color=rgba255(230, 230, 230, 255),
         )
         self.text.enabled = False
         self.timer = 0
@@ -182,14 +214,13 @@ class Locker:
             size, axis = FURNITURE_SIZES['locker']
             self.entity = load_furniture('locker', size, x, z, -0.5,
                                          rotation_y=rotation_y, collider='box', axis=axis)
-            # если шкаф приедет белым/чёрным как кресло - раскомментируй:
-            # nuke_material(self.entity, color.rgba(60, 70, 85))
+            restore_original_colors(self.entity)
         else:
             # запасной вариант из куба
             self.entity = Entity(
                 model='cube', scale=(0.8, 1.8, 0.5),
                 position=(x, 0.4, z),
-                color=color.rgba(60, 70, 85), collider='box',
+                color=rgba255(60, 70, 85), collider='box',
             )
 
     def player_near(self, player, radius=1.8):
@@ -213,13 +244,13 @@ class LockerUI:
         # тёмная панель-подложка (БЕЗ transparency - с ней авто-шейдер белит)
         # z=1 - она ДАЛЬШЕ от камеры, слоты рисуются поверх
         panel = Entity(parent=camera.ui, model='quad', scale=(0.72, 0.56),
-                       position=(0, 0, 1), color=color.rgba(18, 18, 24),
+                       position=(0, 0, 1), color=rgba255(18, 18, 24),
                        unlit=True)
         self.parts.append(panel)
 
         # заголовок (z=-1 - ближе к камере)
         title = Text(parent=camera.ui, text='ХРАНИЛИЩЕ', position=(0, 0.23, -1),
-                     origin=(0, 0), scale=1.5, color=color.rgba(230, 230, 230, 255))
+                     origin=(0, 0), scale=1.5, color=rgba255(230, 230, 230, 255))
         self.parts.append(title)
 
         # сетка квадратных слотов
@@ -236,7 +267,7 @@ class LockerUI:
                            scale=(slot_size, slot_size),
                            position=(start_x + c * (slot_size + gap),
                                      start_y - r * (slot_size + gap), -1),
-                           color=color.rgba(60, 60, 70, 255), unlit=True)
+                           color=rgba255(60, 60, 70, 255), unlit=True)
                 self.parts.append(q)
 
         self.set_visible(False)
@@ -264,19 +295,19 @@ class Chair:
                                          rotation_y=180, collider='box', axis=axis)
             # сдираем кривой glTF-шейдер до последней ноды
             # и красим в тёмный - будет освещаться лампой как стол
-            nuke_material(self.entity, color.rgba(50, 50, 60))
+            nuke_material(self.entity, rgba255(50, 50, 60))
             return
 
         # запасной вариант из кубов
         self.seat = Entity(model='cube', scale=(0.5, 0.08, 0.5),
                            position=(x, y + 0.45, z),
-                           color=color.rgba(30, 30, 35), collider='box')
+                           color=rgba255(30, 30, 35), collider='box')
         self.back = Entity(model='cube', scale=(0.5, 0.6, 0.08),
                            position=(x, y + 0.8, z + 0.25),
-                           color=color.rgba(30, 30, 35), collider='box')
+                           color=rgba255(30, 30, 35), collider='box')
         self.base = Entity(model='cube', scale=(0.1, 0.45, 0.1),
                            position=(x, y + 0.22, z),
-                           color=color.rgba(20, 20, 20))
+                           color=rgba255(20, 20, 20))
 
 # диагностика при импорте
 print('--- диагностика моделей ---')
