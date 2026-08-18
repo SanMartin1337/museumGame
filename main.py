@@ -14,12 +14,31 @@ window.fullscreen = True
 window.vsync = False
 render.setShaderAuto()
 
+# сколько игровых юнитов занимает ОДИН повтор текстуры - подобрано по
+# исходной большой стене/полу, чтобы плитка/кирпич были одного размера
+# на любом куске стены или пола, а не "сжимались" на узких кусках
+WALL_TILE_X = 2.8
+WALL_TILE_Y = 4 / 1.5  # исходная высота стены (4) делённая на исходный повтор (1.5)
+FLOOR_TILE_X = 8.4 / 1.5  # исходная ширина пола делённая на исходный повтор
+FLOOR_TILE_Z = 7 / 1.5    # исходная глубина пола делённая на исходный повтор
+
+
+def set_wall_texture_scale(entity, width, height):
+    """Ставит texture_scale так, чтобы размер кирпича был одинаковым
+    на любой стене, независимо от её реальной ширины/высоты."""
+    entity.texture_scale = (width / WALL_TILE_X, height / WALL_TILE_Y)
+
+
+def set_floor_texture_scale(entity, width, depth):
+    """То же самое, но для пола/потолка."""
+    entity.texture_scale = (width / FLOOR_TILE_X, depth / FLOOR_TILE_Z)
+
 # пол: комната 8.4 x 7 (было 12 x 10), повтор текстуры реже - ламинат крупнее
 floor = Entity(
     model='plane', scale=(8.4, 1, 7), position=(0, -0.5, 0),
     color=color.white, texture='floor', collider='box',
 )
-floor.texture_scale = (1.5, 1.5)
+set_floor_texture_scale(floor, 8.4, 7)
 
 # стены с текстурой (wall.png рядом с main.py)
 wall_back = Entity(model='cube', scale=(8.4, 4, 0.3), position=(0, 1.5, 3.5),
@@ -28,10 +47,23 @@ wall_front = Entity(model='cube', scale=(8.4, 4, 0.3), position=(0, 1.5, -3.5),
                     color=color.white, texture='wall', collider='box')
 wall_left = Entity(model='cube', scale=(0.3, 4, 7), position=(-4.2, 1.5, 0),
                    color=color.white, texture='wall', collider='box')
-wall_right = Entity(model='cube', scale=(0.3, 4, 7), position=(4.2, 1.5, 0),
-                    color=color.white, texture='wall', collider='box')
-for w in (wall_back, wall_front, wall_left, wall_right):
-    w.texture_scale = (3, 1.5)
+
+# правая стена с дверным проёмом посередине (ширина проёма 1.2, от z=-0.6 до z=0.6)
+wall_right_a = Entity(model='cube', scale=(0.3, 4, 2.9), position=(4.2, 1.5, -2.05),
+                      color=color.white, texture='wall', collider='box')
+wall_right_b = Entity(model='cube', scale=(0.3, 4, 2.9), position=(4.2, 1.5, 2.05),
+                      color=color.white, texture='wall', collider='box')
+# перемычка над проёмом (дверь высотой 2.1, стена высотой 4 - сверху остаётся дыра, глушим её)
+door_lintel = Entity(model='cube', scale=(0.3, 1.9, 1.2), position=(4.2, 3.05, 0),
+                     color=color.white, texture='wall', collider='box')
+wall_right = wall_right_a  # чтобы не сломать цикл текстур ниже (просто ссылка)
+
+set_wall_texture_scale(wall_back, 8.4, 4)
+set_wall_texture_scale(wall_front, 8.4, 4)
+set_wall_texture_scale(wall_left, 7, 4)
+set_wall_texture_scale(wall_right_a, 2.9, 4)
+set_wall_texture_scale(wall_right_b, 2.9, 4)
+set_wall_texture_scale(door_lintel, 1.2, 1.9)
 
 
 # потолок БЕЗ unlit - он будет освещаться как настоящий
@@ -62,6 +94,76 @@ monitor_glow = PointLight(
     color=rgba255(120, 160, 220, 255),
 )
 monitor_glow._light.setAttenuation(Vec3(1, 0.3, 0.15))
+
+# === КОРИДОР ЗА ДВЕРЬЮ ===
+# проём в правой стене на x=4.2, ширина проёма по z: -0.6..0.6
+# коридор тянется дальше по x, узкий (ширина по z всего 1.6)
+
+corridor_length = 5
+corridor_start_x = 4.35  # чуть дальше стены (толщина стены 0.3, половина 0.15)
+corridor_center_x = corridor_start_x + corridor_length / 2
+
+corridor_floor = Entity(
+    model='plane', scale=(corridor_length, 1, 1.6),
+    position=(corridor_center_x, -0.5, 0),
+    color=color.white, texture='floor', collider='box',
+)
+set_floor_texture_scale(corridor_floor, corridor_length, 1.6)
+
+corridor_ceiling = Entity(
+    model='plane', scale=(corridor_length, 1, 1.6),
+    position=(corridor_center_x, 3.5, 0), rotation=(180, 0, 0),
+    texture='ceiling_dark', double_sided=True, unlit=True,
+)
+
+corridor_wall_far = Entity(
+    model='cube', scale=(corridor_length, 4, 0.3),
+    position=(corridor_center_x, 1.5, 0.8),
+    color=color.white, texture='wall', collider='box',
+)
+corridor_wall_near = Entity(
+    model='cube', scale=(corridor_length, 4, 0.3),
+    position=(corridor_center_x, 1.5, -0.8),
+    color=color.white, texture='wall', collider='box',
+)
+corridor_wall_end = Entity(
+    model='cube', scale=(0.3, 4, 1.6),
+    position=(corridor_start_x + corridor_length, 1.5, 0),
+    color=color.white, texture='wall', collider='box',
+)
+set_wall_texture_scale(corridor_wall_far, corridor_length, 4)
+set_wall_texture_scale(corridor_wall_near, corridor_length, 4)
+set_wall_texture_scale(corridor_wall_end, 1.6, 4)
+
+# тусклый свет в коридоре, чтобы не было угольно-чёрным
+corridor_light = PointLight(position=(corridor_center_x, 3.2, 0), color=rgba255(90, 85, 100, 255))
+corridor_light._light.setAttenuation(Vec3(1, 0.15, 0.08))
+
+# === ДВЕРЬ НА ПЕТЛЕ ===
+# "точка опоры" (pivot) стоит ровно на петле - на краю проёма (z=-0.6).
+# Сама дверь - дочерний объект pivot'а, сдвинутый от него на половину
+# своей ширины. Когда крутим pivot, дверь вращается вокруг ЕГО оси,
+# а не своего собственного центра - получается как настоящая петля.
+door_pivot = Entity(position=(4.2, 1.05, -0.6))
+door = Entity(
+    parent=door_pivot, model='cube', scale=(0.08, 2.1, 1.15),
+    position=(0, 0, 0.575),  # сдвиг на половину ширины (1.15 / 2)
+    color=rgba255(90, 70, 55, 255), collider='box',
+)
+door_open = False
+DOOR_OPEN_ANGLE = 100  # градусов, насколько дверь распахивается
+
+def toggle_door():
+    global door_open
+    door_open = not door_open
+    target_angle = DOOR_OPEN_ANGLE if door_open else 0
+    door_pivot.animate('rotation_y', target_angle, duration=0.6, curve=curve.out_quad)
+    # пока дверь открыта - убираем коллайдер, чтобы через неё можно было пройти
+    door.collider = None if door_open else 'box'
+
+def player_near_door(player, radius=2.0):
+    d = ((door_pivot.x - player.x) ** 2 + (door_pivot.z - player.z) ** 2) ** 0.5
+    return d <= radius
 
 # === МЕБЕЛЬ ОХРАННИКА (позиции под ужатыю комнату) ===
 
@@ -108,7 +210,7 @@ battery_fill = Entity(
     position=(-0.35, -0.45), color=rgba255(100, 200, 100, 255), unlit=True,
 )
 hint_text = Text(
-    parent=camera.ui, text='F - фонарик | E - хранилище',
+    parent=camera.ui, text='F - фонарик | E - хранилище | Q - дверь',
     position=(-0.85, -0.48), scale=1.2,
     color=rgba255(200, 200, 200, 255),
 )
@@ -151,4 +253,8 @@ def input(key):
     # Escape закрывает окно
     if key == 'escape' and locker_ui.open:
         locker_ui.close_ui()
+
+    # Q - открыть/закрыть дверь (только если игрок рядом)
+    if key == 'q' and player_near_door(player):
+        toggle_door()
 app.run()
