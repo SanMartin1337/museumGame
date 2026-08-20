@@ -14,8 +14,7 @@ window.fullscreen = True
 window.vsync = False
 render.setShaderAuto()
 
-# сколько игровых юнитов занимает ОДИН повтор текстуры - подобрано по
-# исходной большой стене/полу, чтобы плитка/кирпич были одного размера
+
 # на любом куске стены или пола, а не "сжимались" на узких кусках
 WALL_TILE_X = 2.8
 WALL_TILE_Y = 4 / 1.5  # исходная высота стены (4) делённая на исходный повтор (1.5)
@@ -53,9 +52,15 @@ wall_right_a = Entity(model='cube', scale=(0.3, 4, 2.9), position=(4.2, 1.5, -2.
                       color=color.white, texture='wall', collider='box')
 wall_right_b = Entity(model='cube', scale=(0.3, 4, 2.9), position=(4.2, 1.5, 2.05),
                       color=color.white, texture='wall', collider='box')
+
+wall_ToRoom_a = Entity(model='cube', scale=(0.3, 4, 2.9), position=(8.2, 1, -2.05),
+                       color=color.white, texture='wall', collider='box')
+wall_ToRoom_b = Entity(model='cube', scale=(0.3, 4, 2.9), position=(8.2, 1, 2.05),
+                       color=color.white, texture='wall', collider='box')
 # перемычка над проёмом (дверь высотой 2.1, стена высотой 4 - сверху остаётся дыра, глушим её)
 door_lintel = Entity(model='cube', scale=(0.3, 1.9, 1.2), position=(4.2, 3.05, 0),
                      color=color.white, texture='wall', collider='box')
+
 wall_right = wall_right_a  # чтобы не сломать цикл текстур ниже (просто ссылка)
 
 set_wall_texture_scale(wall_back, 8.4, 4)
