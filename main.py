@@ -1,7 +1,8 @@
 from ursina import *
 from ursina.prefabs.first_person_controller import FirstPersonController
 from objects import (Flashlight, Desk, Monitor, Chair, Locker, LockerUI,
-                     has_model, load_furniture, FURNITURE_SIZES, rgba255)
+                     has_model, load_furniture, FURNITURE_SIZES, rgba255,
+                     Hotbar, Inventory)
 from PIL import Image
 import os
 
@@ -14,7 +15,8 @@ window.fullscreen = True
 window.vsync = False
 render.setShaderAuto()
 
-
+# сколько игровых юнитов занимает ОДИН повтор текстуры - подобрано по
+# исходной большой стене/полу, чтобы плитка/кирпич были одного размера
 # на любом куске стены или пола, а не "сжимались" на узких кусках
 WALL_TILE_X = 2.8
 WALL_TILE_Y = 4 / 1.5  # исходная высота стены (4) делённая на исходный повтор (1.5)
@@ -52,15 +54,9 @@ wall_right_a = Entity(model='cube', scale=(0.3, 4, 2.9), position=(4.2, 1.5, -2.
                       color=color.white, texture='wall', collider='box')
 wall_right_b = Entity(model='cube', scale=(0.3, 4, 2.9), position=(4.2, 1.5, 2.05),
                       color=color.white, texture='wall', collider='box')
-
-wall_ToRoom_a = Entity(model='cube', scale=(0.3, 4, 2.9), position=(8.2, 1, -2.05),
-                       color=color.white, texture='wall', collider='box')
-wall_ToRoom_b = Entity(model='cube', scale=(0.3, 4, 2.9), position=(8.2, 1, 2.05),
-                       color=color.white, texture='wall', collider='box')
 # перемычка над проёмом (дверь высотой 2.1, стена высотой 4 - сверху остаётся дыра, глушим её)
 door_lintel = Entity(model='cube', scale=(0.3, 1.9, 1.2), position=(4.2, 3.05, 0),
                      color=color.white, texture='wall', collider='box')
-
 wall_right = wall_right_a  # чтобы не сломать цикл текстур ниже (просто ссылка)
 
 set_wall_texture_scale(wall_back, 8.4, 4)
@@ -138,11 +134,71 @@ corridor_wall_end = Entity(
 )
 set_wall_texture_scale(corridor_wall_far, corridor_length, 4)
 set_wall_texture_scale(corridor_wall_near, corridor_length, 4)
-set_wall_texture_scale(corridor_wall_end, 1.6, 4)
+# в торцевой стене коридора оставляем проём в зал (без коллайдера - тут не дверь, просто арка)
+corridor_wall_end.collider = None
+corridor_wall_end.visible = False
 
-# тусклый свет в коридоре, чтобы не было угольно-чёрным
 corridor_light = PointLight(position=(corridor_center_x, 3.2, 0), color=rgba255(90, 85, 100, 255))
 corridor_light._light.setAttenuation(Vec3(1, 0.15, 0.08))
+
+# === ГЛАВНЫЙ ЗАЛ (примерно в 6 раз больше комнаты охранника по площади) ===
+# комната охранника: 8.4 x 7 = 58.8 кв.юнитов -> зал: 20 x 17.5 = 350 (примерно x6)
+HALL_W = 20   # по x
+HALL_D = 17.5  # по z
+HALL_H = 6     # повыше, чтобы ощущался как большой зал, а не просто растянутая комната
+
+hall_start_x = corridor_start_x + corridor_length  # сразу за торцом коридора
+hall_center_x = hall_start_x + HALL_W / 2
+
+hall_floor = Entity(
+    model='plane', scale=(HALL_W, 1, HALL_D),
+    position=(hall_center_x, -0.5, 0),
+    color=color.white, texture='floor', collider='box',
+)
+set_floor_texture_scale(hall_floor, HALL_W, HALL_D)
+
+hall_ceiling = Entity(
+    model='plane', scale=(HALL_W, 1, HALL_D),
+    position=(hall_center_x, HALL_H - 0.5, 0), rotation=(180, 0, 0),
+    texture='ceiling_dark', double_sided=True, unlit=True,
+)
+
+hall_wall_far = Entity(
+    model='cube', scale=(HALL_W, HALL_H, 0.3),
+    position=(hall_center_x, HALL_H / 2 - 0.5, HALL_D / 2),
+    color=color.white, texture='wall', collider='box',
+)
+hall_wall_near = Entity(
+    model='cube', scale=(HALL_W, HALL_H, 0.3),
+    position=(hall_center_x, HALL_H / 2 - 0.5, -HALL_D / 2),
+    color=color.white, texture='wall', collider='box',
+)
+hall_wall_end = Entity(
+    model='cube', scale=(0.3, HALL_H, HALL_D),
+    position=(hall_start_x + HALL_W, HALL_H / 2 - 0.5, 0),
+    color=color.white, texture='wall', collider='box',
+)
+# проём для входа из коридора - оставляем дыру шириной 1.6 по центру
+hall_wall_start_a = Entity(
+    model='cube', scale=(0.3, HALL_H, (HALL_D - 1.6) / 2),
+    position=(hall_start_x, HALL_H / 2 - 0.5, HALL_D / 4 + 0.4),
+    color=color.white, texture='wall', collider='box',
+)
+hall_wall_start_b = Entity(
+    model='cube', scale=(0.3, HALL_H, (HALL_D - 1.6) / 2),
+    position=(hall_start_x, HALL_H / 2 - 0.5, -HALL_D / 4 - 0.4),
+    color=color.white, texture='wall', collider='box',
+)
+for w, width in ((hall_wall_far, HALL_W), (hall_wall_near, HALL_W),
+                 (hall_wall_end, HALL_D),
+                 (hall_wall_start_a, (HALL_D - 1.6) / 2), (hall_wall_start_b, (HALL_D - 1.6) / 2)):
+    set_wall_texture_scale(w, width, HALL_H)
+
+# несколько тусклых точечных светов вдоль зала, чтобы не было угольно-чёрным на весь пролёт
+for i in range(3):
+    hx = hall_start_x + HALL_W * (i + 1) / 4
+    hl = PointLight(position=(hx, HALL_H - 1, 0), color=rgba255(80, 75, 90, 255))
+    hl._light.setAttenuation(Vec3(1, 0.2, 0.1))
 
 # === ДВЕРЬ НА ПЕТЛЕ ===
 # "точка опоры" (pivot) стоит ровно на петле - на краю проёма (z=-0.6).
@@ -200,6 +256,9 @@ locker_ui = LockerUI()
 # игрок
 player = FirstPersonController(position=(0, 1, 1.6), speed=5)
 
+hotbar = Hotbar()
+inventory = Inventory()
+
 
 
 # фонарик
@@ -215,8 +274,8 @@ battery_fill = Entity(
     position=(-0.35, -0.45), color=rgba255(100, 200, 100, 255), unlit=True,
 )
 hint_text = Text(
-    parent=camera.ui, text='F - фонарик | E - хранилище | Q - дверь',
-    position=(-0.85, -0.48), scale=1.2,
+    parent=camera.ui, text='F - фонарик | E - хранилище | Q - дверь | TAB - инвентарь | 1-5 - ячейка',
+    position=(-0.85, 0.47), scale=1.2,
     color=rgba255(200, 200, 200, 255),
 )
 
@@ -262,4 +321,12 @@ def input(key):
     # Q - открыть/закрыть дверь (только если игрок рядом)
     if key == 'q' and player_near_door(player):
         toggle_door()
+
+    # TAB - открыть/закрыть инвентарь
+    if key == 'tab':
+        inventory.toggle()
+
+    # цифры 1-5 переключают ячейку хотбара
+    if key in ('1', '2', '3', '4', '5'):
+        hotbar.select(int(key) - 1)
 app.run()

@@ -1,16 +1,4 @@
-from ursina import *
+n = ([1, 2, 3, 4, 5, 6, 7, 8, 9, 0])
+number = f"({n[0]}{n[1]}{n[2]}) {n[3]}{n[4]}{n[5]}-{n[6]}{n[7]}{n[8]}{n[9]}"
 
-app = Ursina()
-
-# ничего больше в сцене нет - только один тёмный квадрат в UI
-panel = Entity(
-    parent=camera.ui,
-    model='quad',
-    scale=(0.72, 0.56),
-    color=color.rgba(18, 18, 24),
-    unlit=True,
-)
-
-print('цвет панели прямо перед стартом:', panel.color)
-
-app.run()
+print(number)

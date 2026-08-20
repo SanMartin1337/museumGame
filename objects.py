@@ -309,6 +309,110 @@ class Chair:
                            position=(x, y + 0.22, z),
                            color=rgba255(20, 20, 20))
 
+class Hotbar(Entity):
+    """
+    Полоска ячеек внизу экрана (как в Minecraft), переключается цифрами 1-5.
+    У каждой ячейки два наложенных квадрата: побольше - рамка, поменьше
+    сверху - фон. Так получается аккуратная обводка без текстур/картинок.
+    """
+    SLOT_COUNT = 5
+
+    def __init__(self):
+        super().__init__(parent=camera.ui)
+        self.selected = 0
+        self.items = [None] * self.SLOT_COUNT  # пока пустые слоты - заполним предметами позже
+
+        slot_size = 0.09
+        gap = 0.014
+        total_width = self.SLOT_COUNT * slot_size + (self.SLOT_COUNT - 1) * gap
+        start_x = -total_width / 2 + slot_size / 2
+        y = -0.46
+
+        self.slot_borders = []
+        self.slot_bgs = []
+        self.slot_labels = []
+
+        for i in range(self.SLOT_COUNT):
+            x = start_x + i * (slot_size + gap)
+
+            border = Entity(parent=self, model='quad', scale=slot_size * 1.12,
+                            position=(x, y, 0), color=rgba255(120, 100, 70, 255), unlit=True)
+            bg = Entity(parent=self, model='quad', scale=slot_size,
+                       position=(x, y, -0.001), color=rgba255(20, 18, 22, 235), unlit=True)
+            number = Text(parent=self, text=str(i + 1), position=(x - 0.017, y - 0.05),
+                         scale=0.9, color=rgba255(180, 170, 150, 255))
+
+            self.slot_borders.append(border)
+            self.slot_bgs.append(bg)
+            self.slot_labels.append(number)
+
+        self.refresh_selection()
+
+    def refresh_selection(self):
+        """Подсвечивает выбранную ячейку тёплым золотистым цветом и увеличивает рамку."""
+        for i, border in enumerate(self.slot_borders):
+            if i == self.selected:
+                border.color = rgba255(230, 190, 90, 255)
+                border.scale = 0.09 * 1.22
+            else:
+                border.color = rgba255(120, 100, 70, 255)
+                border.scale = 0.09 * 1.12
+
+    def select(self, index):
+        if 0 <= index < self.SLOT_COUNT:
+            self.selected = index
+            self.refresh_selection()
+
+
+class Inventory(Entity):
+    """
+    Полноэкранная панель инвентаря, открывается/закрывается по TAB.
+    Стилизована под кожаный чемоданчик (тёплые коричневые тона) -
+    целиком из примитивов Ursina, без скачанных текстур.
+    """
+    ROWS = 4
+    COLS = 5
+
+    def __init__(self):
+        super().__init__(parent=camera.ui, enabled=False)
+        self.open = False
+
+        # внешняя "обложка чемодана" - тёмно-коричневая рамка
+        self.case_border = Entity(parent=self, model='quad', scale=(0.98, 0.74),
+                                  color=rgba255(45, 30, 20, 255), unlit=True)
+        # внутренняя панель - светлее, "подкладка"
+        self.case_inner = Entity(parent=self, model='quad', scale=(0.94, 0.68),
+                                 position=(0, 0, -0.001),
+                                 color=rgba255(70, 50, 35, 255), unlit=True)
+
+        self.title = Text(parent=self, text='ИНВЕНТАРЬ', position=(-0.09, 0.32, -0.002),
+                          scale=1.6, color=rgba255(225, 200, 160, 255))
+
+        self.slots = []
+        slot_size = 0.1
+        gap_x = 0.018
+        gap_y = 0.022
+        grid_w = self.COLS * slot_size + (self.COLS - 1) * gap_x
+        grid_h = self.ROWS * slot_size + (self.ROWS - 1) * gap_y
+        start_x = -grid_w / 2 + slot_size / 2
+        start_y = grid_h / 2 - slot_size / 2 - 0.04
+
+        for row in range(self.ROWS):
+            for col in range(self.COLS):
+                x = start_x + col * (slot_size + gap_x)
+                y = start_y - row * (slot_size + gap_y)
+                border = Entity(parent=self, model='quad', scale=slot_size * 1.08,
+                                position=(x, y, -0.002), color=rgba255(30, 20, 14, 255), unlit=True)
+                bg = Entity(parent=self, model='quad', scale=slot_size,
+                           position=(x, y, -0.003), color=rgba255(90, 75, 60, 255), unlit=True)
+                self.slots.append(bg)
+
+    def toggle(self):
+        self.open = not self.open
+        self.enabled = self.open
+        mouse.locked = not self.open  # чтобы можно было двигать мышью по инвентарю, а не крутить камеру
+
+
 # диагностика при импорте
 print('--- диагностика моделей ---')
 if os.path.exists('models'):
