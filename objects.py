@@ -288,8 +288,8 @@ class LockerUI:
             color=rgba255(95, 80, 35, 255), unlit=True, collider='box',
         )
         self.flashlight_label = Text(
-            parent=camera.ui, text='Фонарь', position=(start_x - 0.05, start_y - 0.012, -1.002),
-            origin=(0, 0), scale=0.6, color=rgba255(255, 235, 190, 255),
+            parent=camera.ui, text='🔦', position=(start_x - 0.02, start_y - 0.03, -1.002),
+            origin=(0, 0), scale=2.2, color=rgba255(255, 235, 190, 255),
         )
         self.flashlight_slot.on_click = self.take_flashlight
         self.parts.append(self.flashlight_slot)

@@ -19,6 +19,12 @@ render.setShaderAuto()
 # исходной большой стене/полу, чтобы плитка/кирпич были одного размера
 # на любом куске стены или пола, а не "сжимались" на узких кусках
 WALL_TILE_X = 2.8
+
+# электричество в музее отключено (авария/гроза) - основные источники
+# света вообще не создаются, пока это False. Позже, когда сделаешь
+# механику электрощитовой, просто поставь True - и весь код ниже
+# сам создаст все лампы как надо.
+MAIN_POWER_ON = False
 WALL_TILE_Y = 4 / 1.5  # исходная высота стены (4) делённая на исходный повтор (1.5)
 FLOOR_TILE_X = 8.4 / 1.5  # исходная ширина пола делённая на исходный повтор
 FLOOR_TILE_Z = 7 / 1.5    # исходная глубина пола делённая на исходный повтор
@@ -82,22 +88,22 @@ ceiling.texture_scale = (1, 1)
 
 
 # свет с потолка: источник невидимый, белого куба больше нет
-lamp_spot = SpotLight(position=(0, 3.3, 0), color=rgba255(200, 190, 160, 255))
-lamp_spot._light.setAttenuation(Vec3(1, 0.2, 0.1))
-lamp_spot._light.getLens().setFov(90)
-lamp_spot.enabled = False  # свет выключен по умолчанию - в музее темно (авария/гроза)
+if MAIN_POWER_ON:
+    lamp_spot = SpotLight(position=(0, 3.3, 0), color=rgba255(200, 190, 160, 255))
+    lamp_spot._light.setAttenuation(Vec3(1, 0.2, 0.1))
+    lamp_spot._light.getLens().setFov(90)
 
 # почти нулевой ambient - совсем без него плоскости за пределами радиуса
 # видимости выглядят как чёрные дыры без формы вообще, так чуть виднеются силуэты
 AmbientLight(color=rgba255(4, 4, 7, 255))
 
 # холодный свет от мониторов
-monitor_glow = PointLight(
-    position=(0, 1.2, 2.5),
-    color=rgba255(120, 160, 220, 255),
-)
-monitor_glow._light.setAttenuation(Vec3(1, 0.3, 0.15))
-monitor_glow.enabled = False  # тоже выключен - электричество не работает
+if MAIN_POWER_ON:
+    monitor_glow = PointLight(
+        position=(0, 1.2, 2.5),
+        color=rgba255(120, 160, 220, 255),
+    )
+    monitor_glow._light.setAttenuation(Vec3(1, 0.3, 0.15))
 
 # === КОРИДОР ЗА ДВЕРЬЮ ===
 # проём в правой стене на x=4.2, ширина проёма по z: -0.6..0.6
@@ -141,9 +147,9 @@ set_wall_texture_scale(corridor_wall_near, corridor_length, 4)
 corridor_wall_end.collider = None
 corridor_wall_end.visible = False
 
-corridor_light = PointLight(position=(corridor_center_x, 3.2, 0), color=rgba255(90, 85, 100, 255))
-corridor_light._light.setAttenuation(Vec3(1, 0.15, 0.08))
-corridor_light.enabled = False
+if MAIN_POWER_ON:
+    corridor_light = PointLight(position=(corridor_center_x, 3.2, 0), color=rgba255(90, 85, 100, 255))
+    corridor_light._light.setAttenuation(Vec3(1, 0.15, 0.08))
 
 # === ГЛАВНЫЙ ЗАЛ (примерно в 6 раз больше комнаты охранника по площади) ===
 # комната охранника: 8.4 x 7 = 58.8 кв.юнитов -> зал: 20 x 17.5 = 350 (примерно x6)
@@ -199,11 +205,11 @@ for w, width in ((hall_wall_far, HALL_W), (hall_wall_near, HALL_W),
     set_wall_texture_scale(w, width, HALL_H)
 
 # несколько тусклых точечных светов вдоль зала, чтобы не было угольно-чёрным на весь пролёт
-for i in range(3):
-    hx = hall_start_x + HALL_W * (i + 1) / 4
-    hl = PointLight(position=(hx, HALL_H - 1, 0), color=rgba255(80, 75, 90, 255))
-    hl._light.setAttenuation(Vec3(1, 0.2, 0.1))
-    hl.enabled = False
+if MAIN_POWER_ON:
+    for i in range(3):
+        hx = hall_start_x + HALL_W * (i + 1) / 4
+        hl = PointLight(position=(hx, HALL_H - 1, 0), color=rgba255(80, 75, 90, 255))
+        hl._light.setAttenuation(Vec3(1, 0.2, 0.1))
 
 # === ДВЕРЬ НА ПЕТЛЕ ===
 # "точка опоры" (pivot) стоит ровно на петле - на краю проёма (z=-0.6).
