@@ -103,9 +103,11 @@ def restore_original_colors(e, fallback=rgba255(140, 140, 140, 255)):
             node_path.set_color(c)
 
 class Flashlight:
-    """Фонарик игрока: конус света на камере, батарейка садится."""
+    """Фонарик игрока: конус света на камере, батарейка садится.
+    Пока не поднят из шкафа - включить нельзя."""
     def __init__(self):
         self.on = False
+        self.available = False  # пока False - лежит в шкафу, не в руках у игрока
         self.battery = 100.0
         self.max_battery = 100.0
         self.drain_rate = 2.0
@@ -120,7 +122,12 @@ class Flashlight:
         self.light._light.getLens().setFov(60)
         self.light.enabled = False
 
+    def pickup(self):
+        self.available = True
+
     def toggle(self):
+        if not self.available:
+            return
         self.on = not self.on
         self.light.enabled = self.on
 
@@ -270,7 +277,34 @@ class LockerUI:
                            color=rgba255(60, 60, 70, 255), unlit=True)
                 self.parts.append(q)
 
+        # предмет "фонарик" лежит в первом слоте (в глубине шкафа) -
+        # рисуется ПОВЕРХ обычного пустого слота (z чуть ближе к камере)
+        # и кликабелен - у него есть collider, а Ursina сама зовёт on_click
+        self.item_taken_callback = None  # main.py подставит сюда функцию
+        self.flashlight_taken = False
+        self.flashlight_slot = Entity(
+            parent=camera.ui, model='quad', scale=(slot_size, slot_size),
+            position=(start_x, start_y, -1.001),
+            color=rgba255(95, 80, 35, 255), unlit=True, collider='box',
+        )
+        self.flashlight_label = Text(
+            parent=camera.ui, text='Фонарь', position=(start_x - 0.05, start_y - 0.012, -1.002),
+            origin=(0, 0), scale=0.6, color=rgba255(255, 235, 190, 255),
+        )
+        self.flashlight_slot.on_click = self.take_flashlight
+        self.parts.append(self.flashlight_slot)
+        self.parts.append(self.flashlight_label)
+
         self.set_visible(False)
+
+    def take_flashlight(self):
+        if self.flashlight_taken:
+            return
+        self.flashlight_taken = True
+        self.flashlight_slot.color = rgba255(35, 35, 40, 255)
+        self.flashlight_label.text = ''
+        if self.item_taken_callback:
+            self.item_taken_callback()
 
     def set_visible(self, value):
         for p in self.parts:
@@ -279,10 +313,14 @@ class LockerUI:
     def open_ui(self):
         self.open = True
         self.set_visible(True)
+        mouse.locked = False
+        mouse.visible = True
 
     def close_ui(self):
         self.open = False
         self.set_visible(False)
+        mouse.locked = True
+        mouse.visible = False
 
 
 class Chair:

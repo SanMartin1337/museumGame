@@ -85,9 +85,11 @@ ceiling.texture_scale = (1, 1)
 lamp_spot = SpotLight(position=(0, 3.3, 0), color=rgba255(200, 190, 160, 255))
 lamp_spot._light.setAttenuation(Vec3(1, 0.2, 0.1))
 lamp_spot._light.getLens().setFov(90)
+lamp_spot.enabled = False  # свет выключен по умолчанию - в музее темно (авария/гроза)
 
-# очень тусклый ambient
-AmbientLight(color=rgba255(30, 30, 40, 255))
+# почти нулевой ambient - совсем без него плоскости за пределами радиуса
+# видимости выглядят как чёрные дыры без формы вообще, так чуть виднеются силуэты
+AmbientLight(color=rgba255(4, 4, 7, 255))
 
 # холодный свет от мониторов
 monitor_glow = PointLight(
@@ -95,6 +97,7 @@ monitor_glow = PointLight(
     color=rgba255(120, 160, 220, 255),
 )
 monitor_glow._light.setAttenuation(Vec3(1, 0.3, 0.15))
+monitor_glow.enabled = False  # тоже выключен - электричество не работает
 
 # === КОРИДОР ЗА ДВЕРЬЮ ===
 # проём в правой стене на x=4.2, ширина проёма по z: -0.6..0.6
@@ -140,6 +143,7 @@ corridor_wall_end.visible = False
 
 corridor_light = PointLight(position=(corridor_center_x, 3.2, 0), color=rgba255(90, 85, 100, 255))
 corridor_light._light.setAttenuation(Vec3(1, 0.15, 0.08))
+corridor_light.enabled = False
 
 # === ГЛАВНЫЙ ЗАЛ (примерно в 6 раз больше комнаты охранника по площади) ===
 # комната охранника: 8.4 x 7 = 58.8 кв.юнитов -> зал: 20 x 17.5 = 350 (примерно x6)
@@ -199,6 +203,7 @@ for i in range(3):
     hx = hall_start_x + HALL_W * (i + 1) / 4
     hl = PointLight(position=(hx, HALL_H - 1, 0), color=rgba255(80, 75, 90, 255))
     hl._light.setAttenuation(Vec3(1, 0.2, 0.1))
+    hl.enabled = False
 
 # === ДВЕРЬ НА ПЕТЛЕ ===
 # "точка опоры" (pivot) стоит ровно на петле - на краю проёма (z=-0.6).
@@ -263,6 +268,23 @@ inventory = Inventory()
 
 # фонарик
 flashlight = Flashlight()
+
+
+def on_flashlight_taken():
+    flashlight.pickup()
+    hotbar.items[0] = 'flashlight'
+    hotbar.slot_bgs[0].color = rgba255(70, 60, 30, 255)
+    hotbar.slot_labels[0].text = 'F'
+
+
+locker_ui.item_taken_callback = on_flashlight_taken
+
+# "радиус видимости" вокруг игрока - тусклый персональный свет, привязанный
+# к камере, работает ВСЕГДА, независимо от фонарика (глаза привыкли к темноте,
+# но видно только вплотную к себе). Фонарик даёт дальний направленный свет
+# ПОВЕРХ этого, когда его поднимут и включат.
+player_glow = PointLight(parent=camera, position=(0, 0, 0), color=rgba255(55, 50, 48, 255))
+player_glow._light.setAttenuation(Vec3(1, 1.2, 3.0))  # очень резкое затухание - радиус метра 1.5-2
 
 # UI
 battery_bar = Entity(
